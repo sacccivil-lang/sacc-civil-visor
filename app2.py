@@ -5,7 +5,7 @@ from datetime import datetime
 
 # --- Configuración de página ---
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
-st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA 📊")
+st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA")
 
 # --- Cache de lectura (se actualiza cada semana = 604800 s) ---
 @st.cache_data(ttl=604800)
@@ -66,17 +66,48 @@ if "df" in locals() or "df" in globals():
     if not resultados.empty:
 
         # =====================================================================
-        # --- Exportar múltiples columnas ---
+        # --- DETALLE DEL REGISTRO (primero) ---
+        # =====================================================================
+        st.subheader("📋 Ver detalle de un registro")
+
+        columna_visible = "NOMBRE COMPLETO"
+
+        if columna_visible not in resultados.columns:
+            st.error(f"⚠️ La columna '{columna_visible}' no existe en la base de datos.")
+        else:
+
+            # Formato: 23 – Juan Pérez García
+            opciones = (
+                resultados.index.astype(str) +
+                " – " +
+                resultados[columna_visible].astype(str)
+            )
+
+            eleccion = st.selectbox("Selecciona un registro:", opciones)
+
+            # ID es lo que aparece ANTES del guion " – "
+            idx_real = int(eleccion.split(" – ")[0])
+
+            registro = resultados.loc[idx_real]
+
+            st.json(registro.to_dict())
+
+        # =====================================================================
+        # --- Exportar múltiples columnas (AHORA DEBAJO DE VER REGISTRO) ---
         # =====================================================================
         st.subheader("🧾 Exportar resultados (múltiples columnas)")
-
+        
         columnas_export = st.multiselect(
             "Selecciona las columnas que deseas exportar:",
             df.columns.tolist(),
             help="Puedes elegir una o varias columnas."
         )
 
-        tipo_export = st.radio("Formato de exportación:", ["TXT", "CSV"], horizontal=True)
+        tipo_export = st.radio(
+            "Formato de exportación:",
+            ["TXT", "CSV"],
+            horizontal=True
+        )
 
         if st.button("💾 Exportar"):
             if not columnas_export:
@@ -102,33 +133,6 @@ if "df" in locals() or "df" in globals():
                     file_name=nombre_archivo,
                     mime=mime
                 )
-
-        # =====================================================================
-        # --- Detalle: Selectbox usando NOMBRE COMPLETO ---
-        # =====================================================================
-        st.subheader("📋 Ver detalle de un registro")
-
-        columna_visible = "NOMBRE COMPLETO"
-
-        if columna_visible not in resultados.columns:
-            st.error(f"⚠️ La columna '{columna_visible}' no existe en la base de datos.")
-        else:
-
-            # Formato: 23 – Juan Pérez García
-            opciones = (
-                resultados.index.astype(str) + 
-                " – " + 
-                resultados[columna_visible].astype(str)
-            )
-
-            eleccion = st.selectbox("Selecciona un registro:", opciones)
-
-            # ID es lo que aparece ANTES del guion " – "
-            idx_real = int(eleccion.split(" – ")[0])
-
-            registro = resultados.loc[idx_real]
-
-            st.json(registro.to_dict())
 
         # =====================================================================
         # --- Generar PDF ---
