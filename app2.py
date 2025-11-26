@@ -137,32 +137,40 @@ if "df" in locals() or "df" in globals():
         # =====================================================================
         # --- Generar PDF ---
         # =====================================================================
-        if st.button("📄 Generar reporte PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, "Resumen del registro seleccionado", ln=True)
-            pdf.ln(5)
-            pdf.set_font("Arial", size=11)
+        if st.button("📄 Exportar Registro en PDF"):
 
-            for k, v in registro.items():
-                text = f"{k}: {str(v)}".replace("\n", " ")
-                if len(text) > 100:
-                    chunks = [text[i:i + 100] for i in range(0, len(text), 100)]
-                    for chunk in chunks:
-                        pdf.multi_cell(0, 8, chunk)
-                else:
-                    pdf.multi_cell(0, 8, text)
+    selected_record = df[df["NOMBRE COMPLETO"] == registro_seleccionado].iloc[0]
 
-            pdf.output("reporte.pdf")
-            with open("reporte.pdf", "rb") as f:
-                st.download_button(
-                    "⬇️ Descargar PDF",
-                    f,
-                    file_name=f"reporte_{idx_real}.pdf",
-                    mime="application/pdf"
-                )
+    # Crear PDF compatible con UTF-8
+    pdf = FPDF(orientation="P", unit="mm", format="A4", utf8=True)
+    pdf.add_page()
+
+    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.set_font("DejaVu", "", 11)
+
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(0, 10, "Detalle del Registro", ln=True, fill=True)
+
+    pdf.ln(4)
+
+    # Construcción del texto (clave: valor)
+    for col, val in selected_record.items():
+        line = f"{col}: {val}"
+        pdf.multi_cell(0, 8, line)
+
+    # Guardar
+    filename = "registro_exportado.pdf"
+    pdf.output(filename)
+
+    with open(filename, "rb") as f:
+        st.download_button(
+            label="⬇️ Descargar PDF",
+            data=f,
+            file_name=filename,
+            mime="application/pdf"
+        )
 
     else:
         st.warning("⚠️ No se encontraron resultados con ese criterio de búsqueda.")
