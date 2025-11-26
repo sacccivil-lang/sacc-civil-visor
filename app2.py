@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
+import re  # ← necesario para limpiar caracteres
 
 # --- Configuración de página ---
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
@@ -76,7 +77,6 @@ if "df" in locals() or "df" in globals():
             st.error(f"⚠️ La columna '{columna_visible}' no existe en la base de datos.")
         else:
 
-            # Formato: 23 – Juan Pérez García
             opciones = (
                 resultados.index.astype(str) +
                 " – " +
@@ -85,9 +85,7 @@ if "df" in locals() or "df" in globals():
 
             eleccion = st.selectbox("Selecciona un registro:", opciones)
 
-            # ID es lo que aparece ANTES del guion " – "
             idx_real = int(eleccion.split(" – ")[0])
-
             registro = resultados.loc[idx_real]
 
             st.json(registro.to_dict())
@@ -121,7 +119,7 @@ if "df" in locals() or "df" in globals():
                     nombre_archivo = "export_resultados.txt"
                     mime = "text/plain"
 
-                else:  # CSV
+                else:
                     contenido = df_export.to_csv(index=False)
                     data = contenido.encode("utf-8")
                     nombre_archivo = "export_resultados.csv"
@@ -135,17 +133,16 @@ if "df" in locals() or "df" in globals():
                 )
 
         # =====================================================================
-        # --- Generar PDF (DETALLE EXACTO) ---
+        # --- Generar PDF (DETALLE EXACTO + FIX DE ERRORES) ---
         # =====================================================================
         st.subheader("📄 Generar reporte PDF del registro seleccionado")
 
         if st.button("📄 Generar reporte PDF"):
 
-            # Convertir el registro a texto EXACTO como se ve
+            # Convertir registro a texto limpio
             texto_registro = ""
             for k, v in registro.items():
-                linea = f"{k}: {v}"
-                texto_registro += linea + "\n"
+                texto_registro += f"{k}: {v}\n"
 
             # Crear PDF
             pdf = FPDF()
@@ -160,11 +157,26 @@ if "df" in locals() or "df" in globals():
 
             pdf.set_font("DejaVu", "", 11)
 
-            # Agregar cada línea del registro
+            # LINE-BY-LINE RENDERING SAFE MODE
             for linea in texto_registro.split("\n"):
+
+                # 1. Eliminar caracteres invisibles / no imprimibles
+                linea = re.sub(r"[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]", "", str(linea))
+
+                # 2. Tabulaciones → espacio
+                linea = linea.replace("\t", " ")
+
+                # 3. Evitar líneas sin espacios extremadamente largas
+                if len(linea) > 120 and " " not in linea:
+                    linea = linea[:120] + "..."
+
                 linea = linea.strip()
                 if linea:
-                    pdf.multi_cell(0, 8, linea)
+
+                    try:
+                        pdf.multi_cell(0, 8, linea)
+                    except:
+                        pdf.multi_cell(0, 8, "⚠ Texto no imprimible en este campo.")
 
             pdf.output("reporte.pdf")
 
