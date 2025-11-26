@@ -25,7 +25,7 @@ programa = st.selectbox(
 
 sheet_ids = {
     "Doctorado": "12JOAshO8u1nX-DDNPxxsLmEHKpA4SCGh",
-    "Maestría": "1t4sMTc-ODsNb0OG2T8Zo3WFx6TIKIR41"  # << ACTUALIZADO
+    "Maestría": "1t4sMTc-ODsNb0OG2T8Zo3WFx6TIKIR41"
 }
 
 # --- Botón para refrescar datos ---
@@ -64,16 +64,45 @@ if "df" in locals() or "df" in globals():
     st.dataframe(resultados, use_container_width=True)
 
     if not resultados.empty:
-        # --- Exportar TXT ---
-        st.subheader("🧾 Exportar resultados a TXT")
-        col_txt = st.selectbox("Selecciona la columna que deseas exportar:", df.columns)
-        if st.button("💾 Exportar a TXT"):
-            texto = "\n".join(resultados[col_txt].dropna().astype(str).tolist())
-            file_name = f"export_{col_txt}.txt"
-            with open(file_name, "w", encoding="utf-8") as f:
-                f.write(texto)
-            with open(file_name, "rb") as f:
-                st.download_button(f"⬇️ Descargar {file_name}", f, file_name=file_name, mime="text/plain")
+
+        # =====================================================================
+        # --- Exportar múltiples columnas (NUEVO) ---
+        # =====================================================================
+        st.subheader("🧾 Exportar resultados (múltiples columnas)")
+
+        columnas_export = st.multiselect(
+            "Selecciona las columnas que deseas exportar:",
+            df.columns.tolist(),
+            help="Puedes elegir una o varias columnas."
+        )
+
+        tipo_export = st.radio("Formato de exportación:", ["TXT", "CSV"], horizontal=True)
+
+        if st.button("💾 Exportar"):
+            if not columnas_export:
+                st.warning("⚠️ Selecciona al menos una columna para exportar.")
+            else:
+                df_export = resultados[columnas_export]
+
+                if tipo_export == "TXT":
+                    contenido = df_export.to_csv(index=False, sep="\t")
+                    data = contenido.encode("utf-8")
+                    nombre_archivo = "export_resultados.txt"
+                    mime = "text/plain"
+
+                elif tipo_export == "CSV":
+                    contenido = df_export.to_csv(index=False)
+                    data = contenido.encode("utf-8")
+                    nombre_archivo = "export_resultados.csv"
+                    mime = "text/csv"
+
+                st.download_button(
+                    f"⬇️ Descargar {nombre_archivo}",
+                    data,
+                    file_name=nombre_archivo,
+                    mime=mime
+                )
+        # =====================================================================
 
         # --- Detalle ---
         st.subheader("📋 Ver detalle de un registro")
