@@ -61,56 +61,80 @@ if "df" in locals() or "df" in globals():
         resultados = df
 
     st.write(f"🔹 Registros encontrados: {len(resultados)}")
-    st.dataframe(resultados, use_container_width=True)
 
-    if not resultados.empty:
+    # ============================================================
+    # 🟦 TABLA INTERACTIVA CON SELECCIÓN DE FILA
+    # ============================================================
+    st.subheader("📋 Resultados (haz clic en una fila para ver detalle)")
 
-        # =====================================================================
-        # --- Exportar múltiples columnas (NUEVO) ---
-        # =====================================================================
-        st.subheader("🧾 Exportar resultados (múltiples columnas)")
+    editor_response = st.data_editor(
+        resultados,
+        use_container_width=True,
+        hide_index=False,
+        num_rows="dynamic",
+        disabled=False
+    )
 
-        columnas_export = st.multiselect(
-            "Selecciona las columnas que deseas exportar:",
-            df.columns.tolist(),
-            help="Puedes elegir una o varias columnas."
-        )
+    # Identificar selección de fila
+    try:
+        filas_seleccionadas = editor_response["selection"]["rows"]
+    except:
+        filas_seleccionadas = []
 
-        tipo_export = st.radio("Formato de exportación:", ["TXT", "CSV"], horizontal=True)
+    # ============================================================
+    # 🟦 EXPORTAR VARIAS COLUMNAS A TXT o CSV
+    # ============================================================
+    st.subheader("🧾 Exportar resultados (múltiples columnas)")
 
-        if st.button("💾 Exportar"):
-            if not columnas_export:
-                st.warning("⚠️ Selecciona al menos una columna para exportar.")
-            else:
-                df_export = resultados[columnas_export]
+    columnas_export = st.multiselect(
+        "Selecciona las columnas que deseas exportar:",
+        df.columns.tolist(),
+        help="Puedes elegir una o varias columnas."
+    )
 
-                if tipo_export == "TXT":
-                    contenido = df_export.to_csv(index=False, sep="\t")
-                    data = contenido.encode("utf-8")
-                    nombre_archivo = "export_resultados.txt"
-                    mime = "text/plain"
+    tipo_export = st.radio("Formato de exportación:", ["TXT", "CSV"], horizontal=True)
 
-                elif tipo_export == "CSV":
-                    contenido = df_export.to_csv(index=False)
-                    data = contenido.encode("utf-8")
-                    nombre_archivo = "export_resultados.csv"
-                    mime = "text/csv"
+    if st.button("💾 Exportar"):
+        if not columnas_export:
+            st.warning("⚠️ Selecciona al menos una columna para exportar.")
+        else:
+            df_export = resultados[columnas_export]
 
-                st.download_button(
-                    f"⬇️ Descargar {nombre_archivo}",
-                    data,
-                    file_name=nombre_archivo,
-                    mime=mime
-                )
-        # =====================================================================
+            if tipo_export == "TXT":
+                contenido = df_export.to_csv(index=False, sep="\t")
+                data = contenido.encode("utf-8")
+                nombre_archivo = "export_resultados.txt"
+                mime = "text/plain"
 
-        # --- Detalle ---
-        st.subheader("📋 Ver detalle de un registro")
-        selected = st.selectbox("Selecciona un registro:", resultados.index)
-        registro = resultados.loc[selected]
+            elif tipo_export == "CSV":
+                contenido = df_export.to_csv(index=False)
+                data = contenido.encode("utf-8")
+                nombre_archivo = "export_resultados.csv"
+                mime = "text/csv"
+
+            st.download_button(
+                f"⬇️ Descargar {nombre_archivo}",
+                data,
+                file_name=nombre_archivo,
+                mime=mime
+            )
+
+    # ============================================================
+    # 🟦 MOSTRAR DETALLE AUTOMÁTICAMENTE
+    # ============================================================
+    st.subheader("📘 Detalle del registro seleccionado")
+
+    if filas_seleccionadas:
+        indice_seleccionado = resultados.index[filas_seleccionadas[0]]
+        registro = resultados.loc[indice_seleccionado]
         st.json(registro.to_dict())
+    else:
+        st.info("👈 Selecciona un registro haciendo clic en la tabla.")
 
-        # --- Generar PDF ---
+    # ============================================================
+    # 🟦 GENERAR PDF DEL REGISTRO SELECCIONADO
+    # ============================================================
+    if filas_seleccionadas:
         if st.button("📄 Generar reporte PDF"):
             pdf = FPDF()
             pdf.add_page()
@@ -134,9 +158,8 @@ if "df" in locals() or "df" in globals():
                 st.download_button(
                     "⬇️ Descargar PDF",
                     f,
-                    file_name=f"reporte_{selected}.pdf",
+                    file_name=f"reporte_{indice_seleccionado}.pdf",
                     mime="application/pdf"
                 )
-
-    else:
-        st.warning("⚠️ No se encontraron resultados con ese criterio de búsqueda.")
+else:
+    st.warning("⚠️ No se encontraron resultados con ese criterio de búsqueda.")
