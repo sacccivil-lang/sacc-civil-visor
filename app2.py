@@ -135,27 +135,30 @@ if "df" in locals() or "df" in globals():
                 )
 
         # =====================================================================
-        # --- Generar PDF ---
+        # --- Generar PDF (UNICODE COMPLETO, YA FUNCIONAL) ---
         # =====================================================================
         if st.button("📄 Generar reporte PDF"):
+
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("Arial", "B", 14)
+
+            # --- Fuente Unicode TrueType ---
+            pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+
+            pdf.set_font("DejaVu", "", 14)
             pdf.cell(0, 10, "Resumen del registro seleccionado", ln=True)
             pdf.ln(5)
-            pdf.set_font("Arial", size=11)
 
+            pdf.set_font("DejaVu", "", 11)
+
+            # --- imprimir cada campo ---
             for k, v in registro.items():
-                text = f"{k}: {str(v)}".replace("\n", " ")
-                if len(text) > 100:
-                    chunks = [text[i:i + 100] for i in range(0, len(text), 100)]
-                    for chunk in chunks:
-                        pdf.multi_cell(0, 8, chunk)
-                else:
-                    pdf.multi_cell(0, 8, text)
+                texto = f"{k}: {str(v)}".replace("\n", " ")
+                pdf.multi_cell(0, 8, texto)
 
             pdf.output("reporte.pdf")
+
             with open("reporte.pdf", "rb") as f:
                 st.download_button(
                     "⬇️ Descargar PDF",
