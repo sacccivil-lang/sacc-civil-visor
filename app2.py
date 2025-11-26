@@ -93,7 +93,7 @@ if "df" in locals() or "df" in globals():
             st.json(registro.to_dict())
 
         # =====================================================================
-        # --- Exportar múltiples columnas (AHORA DEBAJO DE VER REGISTRO) ---
+        # --- Exportar múltiples columnas ---
         # =====================================================================
         st.subheader("🧾 Exportar resultados (múltiples columnas)")
         
@@ -121,7 +121,7 @@ if "df" in locals() or "df" in globals():
                     nombre_archivo = "export_resultados.txt"
                     mime = "text/plain"
 
-                elif tipo_export == "CSV":
+                else:  # CSV
                     contenido = df_export.to_csv(index=False)
                     data = contenido.encode("utf-8")
                     nombre_archivo = "export_resultados.csv"
@@ -135,27 +135,36 @@ if "df" in locals() or "df" in globals():
                 )
 
         # =====================================================================
-        # --- Generar PDF (UNICODE COMPLETO, YA FUNCIONAL) ---
+        # --- Generar PDF (DETALLE EXACTO) ---
         # =====================================================================
+        st.subheader("📄 Generar reporte PDF del registro seleccionado")
+
         if st.button("📄 Generar reporte PDF"):
 
+            # Convertir el registro a texto EXACTO como se ve
+            texto_registro = ""
+            for k, v in registro.items():
+                linea = f"{k}: {v}"
+                texto_registro += linea + "\n"
+
+            # Crear PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # --- Fuente Unicode TrueType ---
             pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-
             pdf.set_font("DejaVu", "", 14)
-            pdf.cell(0, 10, "Resumen del registro seleccionado", ln=True)
+
+            pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
             pdf.ln(5)
 
             pdf.set_font("DejaVu", "", 11)
 
-            # --- imprimir cada campo ---
-            for k, v in registro.items():
-                texto = f"{k}: {str(v)}".replace("\n", " ")
-                pdf.multi_cell(0, 8, texto)
+            # Agregar cada línea del registro
+            for linea in texto_registro.split("\n"):
+                linea = linea.strip()
+                if linea:
+                    pdf.multi_cell(0, 8, linea)
 
             pdf.output("reporte.pdf")
 
