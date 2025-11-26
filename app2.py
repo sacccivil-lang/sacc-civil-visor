@@ -7,7 +7,7 @@ from datetime import datetime
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
 st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA")
 
-# --- Cache de lectura (se actualiza cada semana = 604800 s) ---
+# --- Cache de lectura ---
 @st.cache_data(ttl=604800)
 def cargar_excel(sheet_id):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
@@ -28,7 +28,7 @@ sheet_ids = {
     "Maestría": "1t4sMTc-ODsNb0OG2T8Zo3WFx6TIKIR41"
 }
 
-# --- Botón para refrescar datos ---
+# --- Refrescar datos ---
 if st.button("🔄 Refrescar datos (forzar actualización)"):
     st.cache_data.clear()
     st.success("Datos refrescados. Vuelve a seleccionar el programa para recargar.")
@@ -43,98 +43,124 @@ if programa != "-- Seleccionar --":
 else:
     st.stop()
 
-# --- Si hay datos cargados ---
-if "df" in locals() or "df" in globals():
+# =====================================================================
+# --- CONSULTA Y BÚSQUEDA ---
+# =====================================================================
 
-    st.subheader("🔍 Buscar registros")
+st.subheader("🔍 Buscar registros")
 
-    columnas = ["(Todas las columnas)"] + list(df.columns)
-    columna_sel = st.selectbox("Selecciona una columna para buscar:", columnas)
-    query = st.text_input("Introduce palabra o frase para buscar:")
+columnas = ["(Todas las columnas)"] + list(df.columns)
+columna_sel = st.selectbox("Selecciona una columna para buscar:", columnas)
+query = st.text_input("Introduce palabra o frase para buscar:")
 
-    # --- Filtro de búsqueda ---
-    if query:
-        if columna_sel == "(Todas las columnas)":
-            resultados = df[df.apply(lambda r: r.astype(str).str.contains(query, case=False, na=False).any(), axis=1)]
-        else:
-            resultados = df[df[columna_sel].astype(str).str.contains(query, case=False, na=False)]
+if query:
+    if columna_sel == "(Todas las columnas)":
+        resultados = df[df.apply(lambda r: r.astype(str).str.contains(query, case=False, na=False).any(), axis=1)]
     else:
-        resultados = df
-
-    st.write(f"🔹 Registros encontrados: {len(resultados)}")
-
-    # --- TABLA CON SELECCIÓN ---
-    st.subheader("📋 Selecciona un registro de la tabla:")
-
-    selection = st.data_editor(
-        resultados,
-        use_container_width=True,
-        hide_index=False,
-        disabled=True,              # No se puede editar la tabla
-        key="tabla_resultados",
-        selection_mode="single-row" # Permite seleccionar una fila
-    )
-
-    # Determinar el registro seleccionado
-    registro = None
-    if selection and "selected_rows" in selection and len(selection["selected_rows"]) > 0:
-        fila = selection["selected_rows"][0]
-        registro = resultados.iloc[fila]
-
-        st.subheader("📌 Detalle del registro seleccionado")
-        st.json(registro.to_dict())
-
-    # --- Exportar TXT ---
-    if not resultados.empty:
-        st.subheader("🧾 Exportar resultados a TXT")
-        col_txt = st.selectbox("Selecciona la columna que deseas exportar:", df.columns)
-
-        if st.button("💾 Exportar a TXT"):
-            texto = "\n".join(resultados[col_txt].dropna().astype(str).tolist())
-            file_name = f"export_{col_txt}.txt"
-            with open(file_name, "w", encoding="utf-8") as f:
-                f.write(texto)
-            with open(file_name, "rb") as f:
-                st.download_button(
-                    f"⬇️ Descargar {file_name}",
-                    f,
-                    file_name=file_name,
-                    mime="text/plain"
-                )
-
-    # --- Generar PDF SI HAY REGISTRO SELECCIONADO ---
-    if registro is not None:
-
-        st.subheader("📄 Generar reporte en PDF")
-
-        if st.button("📄 Generar PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, "Resumen del registro seleccionado", ln=True)
-            pdf.ln(5)
-            pdf.set_font("Arial", size=11)
-
-            # Escribir el registro
-            for k, v in registro.items():
-                text = f"{k}: {str(v)}".replace("\n", " ")
-                if len(text) > 100:
-                    chunks = [text[i:i+100] for i in range(0, len(text), 100)]
-                    for chunk in chunks:
-                        pdf.multi_cell(0, 8, chunk)
-                else:
-                    pdf.multi_cell(0, 8, text)
-
-            pdf.output("reporte.pdf")
-
-            with open("reporte.pdf", "rb") as f:
-                st.download_button(
-                    "⬇️ Descargar PDF del registro",
-                    f,
-                    file_name=f"reporte_{fila}.pdf",
-                    mime="application/pdf"
-                )
-
+        resultados = df[df[columna_sel].astype(str).str.contains(query, case=False, na=False)]
 else:
-    st.warning("⚠️ No se pudo cargar la base de datos.")
+    resultados = df
+
+st.write(f"🔹 Registros encontrados: {len(resultados)}")
+
+# =====================================================================
+# --- TABLA CON SELECCIÓN DE FILA AUTOMÁTICA ---
+# =====================================================================
+
+st.subheader("📄 Resultados")
+
+# Reset index para que la tabla no pierda filas
+resultados_display = resultados.reset_index(drop=True)
+
+selection = st.data_editor(
+    resultados_display,
+    use_container_width=True,
+    hide_index=True,
+    disabled=True,
+    selection_mode="single-row",
+    key="tabla_resultados"
+)
+
+# Determinar si hay selección
+selected_rows = selection.get("selection", {}).get("rows", [])
+
+# =====================================================================
+# --- DESPLIEGUE AUTOMÁTICO DEL DETALLE ---
+# =====================================================================
+
+if selected_rows:
+    fila = selected_rows[0]
+    registro = resultados_display.loc[fila]
+
+    st.subheader("📋 Detalle del registro seleccionado")
+    st.json(registro.to_dict())
+
+    # =================================================================
+    # --- GENERAR PDF ---
+    # =================================================================
+    if st.button("📄 Generar reporte PDF"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Resumen del registro seleccionado", ln=True)
+        pdf.ln(5)
+        pdf.set_font("Arial", size=11)
+
+        for k, v in registro.items():
+            texto = f"{k}: {str(v)}".replace("\n", " ")
+            if len(texto) > 100:
+                chunks = [texto[i:i+100] for i in range(0, len(texto), 100)]
+                for chunk in chunks:
+                    pdf.multi_cell(0, 8, chunk)
+            else:
+                pdf.multi_cell(0, 8, texto)
+
+        pdf.output("reporte.pdf")
+
+        with open("reporte.pdf", "rb") as f:
+            st.download_button(
+                "⬇️ Descargar PDF",
+                f,
+                file_name=f"reporte_seleccion.pdf",
+                mime="application/pdf"
+            )
+
+# =====================================================================
+# --- EXPORTAR RESULTADOS ---
+# =====================================================================
+
+st.subheader("🧾 Exportar resultados")
+
+columnas_export = st.multiselect(
+    "Selecciona las columnas que deseas exportar:",
+    df.columns.tolist(),
+    help="Puedes seleccionar varias columnas."
+)
+
+tipo_export = st.radio("Formato de exportación:", ["TXT", "CSV"], horizontal=True)
+
+if st.button("💾 Exportar"):
+    if not columnas_export:
+        st.warning("⚠️ Selecciona al menos una columna.")
+    else:
+        df_export = resultados[columnas_export]
+
+        if tipo_export == "TXT":
+            contenido = df_export.to_csv(index=False, sep="\t")
+            data = contenido.encode("utf-8")
+            nombre_archivo = "export_resultados.txt"
+            mime = "text/plain"
+
+        else:
+            contenido = df_export.to_csv(index=False)
+            data = contenido.encode("utf-8")
+            nombre_archivo = "export_resultados.csv"
+            mime = "text/csv"
+
+        st.download_button(
+            f"⬇️ Descargar {nombre_archivo}",
+            data,
+            file_name=nombre_archivo,
+            mime=mime
+        )
