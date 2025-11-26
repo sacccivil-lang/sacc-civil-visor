@@ -176,7 +176,7 @@ if "df" in locals() or "df" in globals():
                     try:
                         pdf.multi_cell(0, 8, linea)
                     except:
-                        pdf.multi_cell(0, 8, "⚠ Texto no imprimible en este campo.")
+                        pdf.multi_cell(0, 8, "Texto no imprimible en este campo.")
 
             pdf.output("reporte.pdf")
 
