@@ -45,6 +45,7 @@ else:
 
 # --- Si hay datos ---
 if "df" in locals() or "df" in globals():
+
     st.subheader("🔍 Buscar registros")
 
     columnas = ["(Todas las columnas)"] + list(df.columns)
@@ -62,146 +63,49 @@ if "df" in locals() or "df" in globals():
 
     st.write(f"🔹 Registros encontrados: {len(resultados)}")
 
-    # ============================================================
-    # TABLA INTERACTIVA CON SELECCIÓN DE FILA (st.data_editor)
-    # ============================================================
-    st.subheader("📋 Resultados (haz clic en una fila para ver detalle)")
-
-    # muéstralo no-editable para evitar que la estructura cambie si el usuario edita
-    editor_response = st.data_editor(
+    # 🔥 TABLA CON SELECCIÓN ACTIVADA
+    selection = st.data_table(
         resultados,
         use_container_width=True,
-        hide_index=False,
-        num_rows="dynamic",
-        disabled=True  # deshabilitado para evitar ediciones que cambien la estructura devuelta
+        selection_mode="single-row",
+        on_select="rerun"
     )
 
-    # ============================================================
-    # EXTRAE de forma robusta la(s) fila(s) seleccionada(s)
-    # ============================================================
-    filas_seleccionadas = []  # posiciones (0-based) dentro de 'resultados'
+    # Si se seleccionó una fila, mostrar detalles
+    registro = None
+    if selection and "selection" in selection:
+        selected_rows = selection["selection"]["rows"]
 
-    # 1) Si viene un dict con "selection" -> "rows"
-    if isinstance(editor_response, dict):
-        sel = editor_response.get("selection") or editor_response.get("selected_rows") or {}
-        # sel puede ser dict o lista
-        if isinstance(sel, dict):
-            rows = sel.get("rows")  # caso esperado: lista de ints o lista de dicts
-            if rows is None:
-                # a veces la clave es 'rows' dentro de 'selection' pero con otro nesting
-                rows = sel.get("row_ids") or sel.get("row")
-            if isinstance(rows, list):
-                # si cada elemento es dict, intentar extraer pos
-                if rows and isinstance(rows[0], dict):
-                    for r in rows:
-                        # intentar diversas claves posibles
-                        if "row" in r:
-                            filas_seleccionadas.append(int(r["row"]))
-                        elif "index" in r:
-                            filas_seleccionadas.append(int(r["index"]))
-                        elif "row_id" in r:
-                            filas_seleccionadas.append(int(r["row_id"]))
-                        elif "rowKey" in r:
-                            filas_seleccionadas.append(int(r["rowKey"]))
-                else:
-                    # lista simple de enteros (posiciones)
-                    try:
-                        filas_seleccionadas = [int(x) for x in rows]
-                    except:
-                        filas_seleccionadas = []
-        elif isinstance(sel, list):
-            # si selection ya es lista de ints
-            try:
-                filas_seleccionadas = [int(x) for x in sel]
-            except:
-                filas_seleccionadas = []
+        if selected_rows:
+            fila = selected_rows[0]   # índice relativo dentro de resultados
+            registro = resultados.iloc[fila]
 
-    # 2) Si st.data_editor devolviera un DataFrame (versiones antiguas/extrañas)
-    if not filas_seleccionadas:
-        try:
-            # si devuelve un DataFrame modificado, Streamlit suele poner atributos especiales
-            # pero no siempre incluye selección; ignoramos este caso salvo que haya 'selected_rows'
-            if hasattr(editor_response, "get") and isinstance(editor_response.get("selected_rows", None), list):
-                filas_seleccionadas = [int(x) for x in editor_response.get("selected_rows", [])]
-        except Exception:
-            pass
-
-    # 3) Como último recurso, si editor_response contiene directamente 'selected_rows'
-    if not filas_seleccionadas and isinstance(editor_response, dict) and "selected_rows" in editor_response:
-        try:
-            filas_seleccionadas = [int(x) for x in editor_response["selected_rows"]]
-        except:
-            filas_seleccionadas = []
-
-    # ============================================================
-    # EXPORTAR VARIAS COLUMNAS A TXT o CSV (mantengo tu bloque)
-    # ============================================================
-    st.subheader("🧾 Exportar resultados (múltiples columnas)")
-
-    columnas_export = st.multiselect(
-        "Selecciona las columnas que deseas exportar:",
-        df.columns.tolist(),
-        help="Puedes elegir una o varias columnas."
-    )
-
-    tipo_export = st.radio("Formato de exportación:", ["TXT", "CSV"], horizontal=True)
-
-    if st.button("💾 Exportar"):
-        if not columnas_export:
-            st.warning("⚠️ Selecciona al menos una columna para exportar.")
-        else:
-            df_export = resultados[columnas_export]
-
-            if tipo_export == "TXT":
-                contenido = df_export.to_csv(index=False, sep="\t")
-                data = contenido.encode("utf-8")
-                nombre_archivo = "export_resultados.txt"
-                mime = "text/plain"
-
-            elif tipo_export == "CSV":
-                contenido = df_export.to_csv(index=False)
-                data = contenido.encode("utf-8")
-                nombre_archivo = "export_resultados.csv"
-                mime = "text/csv"
-
-            st.download_button(
-                f"⬇️ Descargar {nombre_archivo}",
-                data,
-                file_name=nombre_archivo,
-                mime=mime
-            )
-
-    # ============================================================
-    # MOSTRAR DETALLE AUTOMÁTICAMENTE
-    # ============================================================
-    st.subheader("📘 Detalle del registro seleccionado")
-
-    if filas_seleccionadas:
-        # tomamos la primera selección (single-row)
-        pos = filas_seleccionadas[0]
-        # por seguridad, comprobar límites
-        if 0 <= pos < len(resultados):
-            indice_real = resultados.index[pos]
-            registro = resultados.loc[indice_real]
+            st.subheader("📋 Ver detalle del registro seleccionado")
             st.json(registro.to_dict())
-        else:
-            st.error("Índice de selección fuera de rango.")
-    else:
-        st.info("👈 Haz clic en una fila de la tabla para ver el detalle.")
-        # Pista de depuración (te ayudará a entender qué estructura te devuelve st.data_editor)
-        st.write("DEBUG: estructura devuelta por st.data_editor (solo lectura):")
-        st.write(type(editor_response))
-        # muestra solo las claves principales si es dict (evita volcar el DataFrame entero)
-        if isinstance(editor_response, dict):
-            st.write("Claves:", list(editor_response.keys()))
-        else:
-            st.write("Contenido (resumido):", str(editor_response)[:500])
 
-    # ============================================================
-    # GENERAR PDF DEL REGISTRO SELECCIONADO
-    # ============================================================
-    if filas_seleccionadas:
-        if st.button("📄 Generar reporte PDF"):
+    # --- Exportar TXT ---
+    if not resultados.empty:
+        st.subheader("🧾 Exportar resultados a TXT")
+        col_txt = st.selectbox("Selecciona la columna que deseas exportar:", df.columns)
+
+        if st.button("💾 Exportar a TXT"):
+            texto = "\n".join(resultados[col_txt].dropna().astype(str).tolist())
+            file_name = f"export_{col_txt}.txt"
+            with open(file_name, "w", encoding="utf-8") as f:
+                f.write(texto)
+            with open(file_name, "rb") as f:
+                st.download_button(
+                    f"⬇️ Descargar {file_name}",
+                    f,
+                    file_name=file_name,
+                    mime="text/plain"
+                )
+
+    # --- Generar PDF SOLO SI HAY REGISTRO SELECCIONADO ---
+    if registro is not None:
+        st.subheader("📄 Generar reporte PDF del registro seleccionado")
+
+        if st.button("📄 Generar PDF"):
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
@@ -213,7 +117,7 @@ if "df" in locals() or "df" in globals():
             for k, v in registro.items():
                 text = f"{k}: {str(v)}".replace("\n", " ")
                 if len(text) > 100:
-                    chunks = [text[i:i + 100] for i in range(0, len(text), 100)]
+                    chunks = [text[i:i+100] for i in range(0, len(text), 100)]
                     for chunk in chunks:
                         pdf.multi_cell(0, 8, chunk)
                 else:
@@ -224,8 +128,6 @@ if "df" in locals() or "df" in globals():
                 st.download_button(
                     "⬇️ Descargar PDF",
                     f,
-                    file_name=f"reporte_{indice_real}.pdf",
+                    file_name=f"reporte_{fila}.pdf",
                     mime="application/pdf"
                 )
-else:
-    st.warning("⚠️ No se encontraron resultados con ese criterio de búsqueda.")
