@@ -68,7 +68,7 @@ if "df" in locals() or "df" in globals():
         # =====================================================================
         # --- DETALLE DEL REGISTRO (primero) ---
         # =====================================================================
-        st.subheader("📋 Ver detalle de un registro")
+        st.subheader("📋 Ver detalle de un registro de la busqueda")
 
         columna_visible = "NOMBRE COMPLETO"
 
@@ -83,7 +83,7 @@ if "df" in locals() or "df" in globals():
                 resultados[columna_visible].astype(str)
             )
 
-            eleccion = st.selectbox("Selecciona un registro:", opciones)
+            eleccion = st.selectbox("Selecciona un registro entre los resultados:", opciones)
 
             # ID es lo que aparece ANTES del guion " – "
             idx_real = int(eleccion.split(" – ")[0])
