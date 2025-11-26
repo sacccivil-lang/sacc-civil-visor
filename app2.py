@@ -43,7 +43,7 @@ if programa != "-- Seleccionar --":
 else:
     st.stop()
 
-# --- Si hay datos ---
+# --- Si hay datos cargados ---
 if "df" in locals() or "df" in globals():
 
     st.subheader("🔍 Buscar registros")
@@ -63,25 +63,26 @@ if "df" in locals() or "df" in globals():
 
     st.write(f"🔹 Registros encontrados: {len(resultados)}")
 
-    # 🔥 TABLA CON SELECCIÓN ACTIVADA
-    selection = st.data_table(
+    # --- TABLA CON SELECCIÓN ---
+    st.subheader("📋 Selecciona un registro de la tabla:")
+
+    selection = st.data_editor(
         resultados,
         use_container_width=True,
-        selection_mode="single-row",
-        on_select="rerun"
+        hide_index=False,
+        disabled=True,              # No se puede editar la tabla
+        key="tabla_resultados",
+        selection_mode="single-row" # Permite seleccionar una fila
     )
 
-    # Si se seleccionó una fila, mostrar detalles
+    # Determinar el registro seleccionado
     registro = None
-    if selection and "selection" in selection:
-        selected_rows = selection["selection"]["rows"]
+    if selection and "selected_rows" in selection and len(selection["selected_rows"]) > 0:
+        fila = selection["selected_rows"][0]
+        registro = resultados.iloc[fila]
 
-        if selected_rows:
-            fila = selected_rows[0]   # índice relativo dentro de resultados
-            registro = resultados.iloc[fila]
-
-            st.subheader("📋 Ver detalle del registro seleccionado")
-            st.json(registro.to_dict())
+        st.subheader("📌 Detalle del registro seleccionado")
+        st.json(registro.to_dict())
 
     # --- Exportar TXT ---
     if not resultados.empty:
@@ -101,9 +102,10 @@ if "df" in locals() or "df" in globals():
                     mime="text/plain"
                 )
 
-    # --- Generar PDF SOLO SI HAY REGISTRO SELECCIONADO ---
+    # --- Generar PDF SI HAY REGISTRO SELECCIONADO ---
     if registro is not None:
-        st.subheader("📄 Generar reporte PDF del registro seleccionado")
+
+        st.subheader("📄 Generar reporte en PDF")
 
         if st.button("📄 Generar PDF"):
             pdf = FPDF()
@@ -114,6 +116,7 @@ if "df" in locals() or "df" in globals():
             pdf.ln(5)
             pdf.set_font("Arial", size=11)
 
+            # Escribir el registro
             for k, v in registro.items():
                 text = f"{k}: {str(v)}".replace("\n", " ")
                 if len(text) > 100:
@@ -124,10 +127,14 @@ if "df" in locals() or "df" in globals():
                     pdf.multi_cell(0, 8, text)
 
             pdf.output("reporte.pdf")
+
             with open("reporte.pdf", "rb") as f:
                 st.download_button(
-                    "⬇️ Descargar PDF",
+                    "⬇️ Descargar PDF del registro",
                     f,
                     file_name=f"reporte_{fila}.pdf",
                     mime="application/pdf"
                 )
+
+else:
+    st.warning("⚠️ No se pudo cargar la base de datos.")
