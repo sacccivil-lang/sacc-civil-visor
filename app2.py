@@ -5,7 +5,7 @@ from datetime import datetime
 
 # --- Configuración de página ---
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
-st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA")
+st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA 📊")
 
 # --- Cache de lectura (se actualiza cada semana = 604800 s) ---
 @st.cache_data(ttl=604800)
@@ -66,7 +66,7 @@ if "df" in locals() or "df" in globals():
     if not resultados.empty:
 
         # =====================================================================
-        # --- Exportar múltiples columnas (NUEVO) ---
+        # --- Exportar múltiples columnas ---
         # =====================================================================
         st.subheader("🧾 Exportar resultados (múltiples columnas)")
 
@@ -102,15 +102,37 @@ if "df" in locals() or "df" in globals():
                     file_name=nombre_archivo,
                     mime=mime
                 )
+
         # =====================================================================
-
-        # --- Detalle ---
+        # --- Detalle: Selectbox usando NOMBRE COMPLETO ---
+        # =====================================================================
         st.subheader("📋 Ver detalle de un registro")
-        selected = st.selectbox("Selecciona un registro:", resultados.index)
-        registro = resultados.loc[selected]
-        st.json(registro.to_dict())
 
+        columna_visible = "NOMBRE COMPLETO"
+
+        if columna_visible not in resultados.columns:
+            st.error(f"⚠️ La columna '{columna_visible}' no existe en la base de datos.")
+        else:
+
+            # Formato: 23 – Juan Pérez García
+            opciones = (
+                resultados.index.astype(str) + 
+                " – " + 
+                resultados[columna_visible].astype(str)
+            )
+
+            eleccion = st.selectbox("Selecciona un registro:", opciones)
+
+            # ID es lo que aparece ANTES del guion " – "
+            idx_real = int(eleccion.split(" – ")[0])
+
+            registro = resultados.loc[idx_real]
+
+            st.json(registro.to_dict())
+
+        # =====================================================================
         # --- Generar PDF ---
+        # =====================================================================
         if st.button("📄 Generar reporte PDF"):
             pdf = FPDF()
             pdf.add_page()
@@ -134,7 +156,7 @@ if "df" in locals() or "df" in globals():
                 st.download_button(
                     "⬇️ Descargar PDF",
                     f,
-                    file_name=f"reporte_{selected}.pdf",
+                    file_name=f"reporte_{idx_real}.pdf",
                     mime="application/pdf"
                 )
 
