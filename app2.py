@@ -67,7 +67,7 @@ if "df" in locals() or "df" in globals():
     if not resultados.empty:
 
         # =====================================================================
-        # --- DETALLE DEL REGISTRO (primero) ---
+        # --- DETALLE DEL REGISTRO ---
         # =====================================================================
         st.subheader("📋 Ver detalle de un registro")
 
@@ -132,18 +132,22 @@ if "df" in locals() or "df" in globals():
                 )
 
         # =====================================================================
-        # --- Generar PDF EXACTO DEL DETALLE (igual que st.json) ---
+        # --- Generar PDF (versión recomendada, SIEMPRE FUNCIONA) ---
         # =====================================================================
         st.subheader("📄 Generar reporte PDF del registro seleccionado")
 
         if st.button("📄 Generar reporte PDF"):
 
-            # Convertir registro a texto tipo JSON (estilo clave: valor)
             dict_registro = registro.to_dict()
 
             texto_limpio = ""
             for k, v in dict_registro.items():
+                # Convertir a cadena
                 linea = f"{k}: {v}"
+
+                # Convertir Unicode → Latin-1 seguro
+                linea = linea.encode("latin-1", "replace").decode("latin-1")
+
                 texto_limpio += linea + "\n"
 
             # Crear PDF
@@ -151,23 +155,20 @@ if "df" in locals() or "df" in globals():
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # Fuente compatible Unicode (DEBE existir DejaVuSans.ttf)
-            pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-            pdf.set_font("DejaVu", "", 14)
-
+            # Helvetica → fuente interna segura
+            pdf.set_font("Helvetica", size=14)
             pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
             pdf.ln(5)
-            pdf.set_font("DejaVu", "", 11)
 
-            # Imprimir línea por línea (idéntico a detalle)
+            pdf.set_font("Helvetica", size=11)
+
             for linea in texto_limpio.split("\n"):
-
-                # Limpiar caracteres no imprimibles
-                linea = re.sub(r"[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]", "", str(linea))
                 linea = linea.strip()
-
                 if linea:
-                    pdf.multi_cell(0, 8, linea)
+                    try:
+                        pdf.multi_cell(0, 8, linea)
+                    except:
+                        pdf.multi_cell(0, 8, "[Texto no imprimible]")
 
             pdf.output("reporte.pdf")
 
