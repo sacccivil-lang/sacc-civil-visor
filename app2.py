@@ -2,13 +2,35 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
-import re  # ← necesario para limpiar caracteres
+import re
 
-# --- Configuración de página ---
+# ==========================================================
+#  🔧 FUNCIONES PARA LIMPIAR TEXTO (Solución Recomendada)
+# ==========================================================
+
+def limpiar_texto(s: str) -> str:
+    """Convierte texto a ASCII removiendo caracteres no imprimibles."""
+    if not isinstance(s, str):
+        s = str(s)
+    return s.encode("ascii", "ignore").decode()
+
+def texto_seguro(s: str) -> str:
+    """Limpia caracteres invisibles y no compatibles con FPDF."""
+    s = limpiar_texto(s)
+    s = s.replace("\xa0", " ")       # espacio no separable
+    s = s.replace("\u200b", "")      # zero width space
+    s = s.replace("\u2013", "-")     # guión en-dash
+    s = s.replace("\u2014", "-")     # guión em-dash
+    s = s.strip()
+    return s if s else "[Texto eliminado por contener caracteres no imprimibles]"
+
+# ==========================================================
+#  🖥️ CONFIGURACIÓN DE PÁGINA
+# ==========================================================
+
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
 st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA")
 
-# --- Cache de lectura (se actualiza cada semana = 604800 s) ---
 @st.cache_data(ttl=604800)
 def cargar_excel(sheet_id):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
@@ -16,7 +38,6 @@ def cargar_excel(sheet_id):
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
     return df, fecha
 
-# --- Selección del programa ---
 st.subheader("🎓 Selecciona el programa que deseas consultar")
 
 programa = st.selectbox(
@@ -29,7 +50,6 @@ sheet_ids = {
     "Maestría": "1t4sMTc-ODsNb0OG2T8Zo3WFx6TIKIR41"
 }
 
-# --- Botón para refrescar datos ---
 if st.button("🔄 Refrescar datos (forzar actualización)"):
     st.cache_data.clear()
     st.success("Datos refrescados. Vuelve a seleccionar el programa para recargar.")
@@ -44,7 +64,10 @@ if programa != "-- Seleccionar --":
 else:
     st.stop()
 
-# --- Si hay datos ---
+# ==========================================================
+#  🔎 BÚSQUEDA Y RESULTADOS
+# ==========================================================
+
 if "df" in locals() or "df" in globals():
     st.subheader("🔍 Buscar registros")
 
@@ -52,7 +75,6 @@ if "df" in locals() or "df" in globals():
     columna_sel = st.selectbox("Selecciona una columna para buscar:", columnas)
     query = st.text_input("Introduce palabra o frase para buscar:")
 
-    # --- Filtro de búsqueda ---
     if query:
         if columna_sel == "(Todas las columnas)":
             resultados = df[df.apply(lambda r: r.astype(str).str.contains(query, case=False, na=False).any(), axis=1)]
@@ -66,9 +88,9 @@ if "df" in locals() or "df" in globals():
 
     if not resultados.empty:
 
-        # =====================================================================
-        # --- DETALLE DEL REGISTRO ---
-        # =====================================================================
+        # ======================================================
+        #  📄 DETALLE DEL REGISTRO
+        # ======================================================
         st.subheader("📋 Ver detalle de un registro")
 
         columna_visible = "NOMBRE COMPLETO"
@@ -89,9 +111,9 @@ if "df" in locals() or "df" in globals():
 
             st.json(registro.to_dict())
 
-        # =====================================================================
-        # --- Exportar múltiples columnas ---
-        # =====================================================================
+        # ======================================================
+        #  🧾 EXPORTACIONES
+        # ======================================================
         st.subheader("🧾 Exportar resultados (múltiples columnas)")
         
         columnas_export = st.multiselect(
@@ -131,9 +153,9 @@ if "df" in locals() or "df" in globals():
                     mime=mime
                 )
 
-        # =====================================================================
-        # --- Generar PDF (versión recomendada, SIEMPRE FUNCIONA) ---
-        # =====================================================================
+        # ======================================================
+        #  📄 GENERACIÓN DEL PDF (ARREGLADO Y ESTABLE)
+        # ======================================================
         st.subheader("📄 Generar reporte PDF del registro seleccionado")
 
         if st.button("📄 Generar reporte PDF"):
@@ -142,20 +164,14 @@ if "df" in locals() or "df" in globals():
 
             texto_limpio = ""
             for k, v in dict_registro.items():
-                # Convertir a cadena
                 linea = f"{k}: {v}"
-
-                # Convertir Unicode → Latin-1 seguro
-                linea = linea.encode("latin-1", "replace").decode("latin-1")
-
+                linea = texto_seguro(linea)   # ← LIMPIA TODA LA LÍNEA
                 texto_limpio += linea + "\n"
 
-            # Crear PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # Helvetica → fuente interna segura
             pdf.set_font("Helvetica", size=14)
             pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
             pdf.ln(5)
@@ -163,12 +179,11 @@ if "df" in locals() or "df" in globals():
             pdf.set_font("Helvetica", size=11)
 
             for linea in texto_limpio.split("\n"):
-                linea = linea.strip()
-                if linea:
+                if linea.strip():
                     try:
-                        pdf.multi_cell(0, 8, linea)
+                        pdf.multi_cell(190, 8, linea)   # ← ANCHO SEGURO
                     except:
-                        pdf.multi_cell(0, 8, "[Texto no imprimible]")
+                        pdf.multi_cell(190, 8, "[Texto no imprimible]")
 
             pdf.output("reporte.pdf")
 
