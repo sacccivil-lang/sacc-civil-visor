@@ -76,7 +76,6 @@ if "df" in locals() or "df" in globals():
         if columna_visible not in resultados.columns:
             st.error(f"⚠️ La columna '{columna_visible}' no existe en la base de datos.")
         else:
-
             opciones = (
                 resultados.index.astype(str) +
                 " – " +
@@ -133,50 +132,42 @@ if "df" in locals() or "df" in globals():
                 )
 
         # =====================================================================
-        # --- Generar PDF (DETALLE EXACTO + FIX DE ERRORES) ---
+        # --- Generar PDF EXACTO DEL DETALLE (igual que st.json) ---
         # =====================================================================
         st.subheader("📄 Generar reporte PDF del registro seleccionado")
 
         if st.button("📄 Generar reporte PDF"):
 
-            # Convertir registro a texto limpio
-            texto_registro = ""
-            for k, v in registro.items():
-                texto_registro += f"{k}: {v}\n"
+            # Convertir registro a texto tipo JSON (estilo clave: valor)
+            dict_registro = registro.to_dict()
+
+            texto_limpio = ""
+            for k, v in dict_registro.items():
+                linea = f"{k}: {v}"
+                texto_limpio += linea + "\n"
 
             # Crear PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
+            # Fuente compatible Unicode (DEBE existir DejaVuSans.ttf)
             pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
             pdf.set_font("DejaVu", "", 14)
 
             pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
             pdf.ln(5)
-
             pdf.set_font("DejaVu", "", 11)
 
-            # LINE-BY-LINE RENDERING SAFE MODE
-            for linea in texto_registro.split("\n"):
+            # Imprimir línea por línea (idéntico a detalle)
+            for linea in texto_limpio.split("\n"):
 
-                # 1. Eliminar caracteres invisibles / no imprimibles
+                # Limpiar caracteres no imprimibles
                 linea = re.sub(r"[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]", "", str(linea))
-
-                # 2. Tabulaciones → espacio
-                linea = linea.replace("\t", " ")
-
-                # 3. Evitar líneas sin espacios extremadamente largas
-                if len(linea) > 120 and " " not in linea:
-                    linea = linea[:120] + "..."
-
                 linea = linea.strip()
-                if linea:
 
-                    try:
-                        pdf.multi_cell(0, 8, linea)
-                    except:
-                        pdf.multi_cell(0, 8, "Texto no imprimible")
+                if linea:
+                    pdf.multi_cell(0, 8, linea)
 
             pdf.output("reporte.pdf")
 
