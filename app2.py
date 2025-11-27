@@ -6,7 +6,7 @@ import re  # ← necesario para limpiar caracteres
 
 # --- Configuración de página ---
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
-st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA")
+st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA 📊")
 
 # --- Cache de lectura (se actualiza cada semana = 604800 s) ---
 @st.cache_data(ttl=604800)
@@ -69,7 +69,7 @@ if "df" in locals() or "df" in globals():
         # =====================================================================
         # --- DETALLE DEL REGISTRO ---
         # =====================================================================
-        st.subheader("📋 Ver detalle de un registro")
+        st.subheader("📋 Ver detalle de un registro de la busqueda")
 
         columna_visible = "NOMBRE COMPLETO"
 
