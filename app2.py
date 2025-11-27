@@ -1,28 +1,32 @@
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF
 from datetime import datetime
 import re
 
+# 📌 NUEVOS imports para ReportLab (PDF estable)
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+import io
+
 # ==========================================================
-#  🔧 FUNCIONES PARA LIMPIAR TEXTO (Solución Recomendada)
+#  🔧 FUNCIONES PARA LIMPIAR TEXTO
 # ==========================================================
 
 def limpiar_texto(s: str) -> str:
-    """Convierte texto a ASCII removiendo caracteres no imprimibles."""
     if not isinstance(s, str):
         s = str(s)
     return s.encode("ascii", "ignore").decode()
 
 def texto_seguro(s: str) -> str:
-    """Limpia caracteres invisibles y no compatibles con FPDF."""
     s = limpiar_texto(s)
-    s = s.replace("\xa0", " ")       # espacio no separable
-    s = s.replace("\u200b", "")      # zero width space
-    s = s.replace("\u2013", "-")     # guión en-dash
-    s = s.replace("\u2014", "-")     # guión em-dash
+    s = s.replace("\xa0", " ")
+    s = s.replace("\u200b", "")
+    s = s.replace("\u2013", "-")
+    s = s.replace("\u2014", "-")
     s = s.strip()
-    return s if s else "[Texto eliminado por contener caracteres no imprimibles]"
+    return s if s else "[Texto eliminado]"
 
 # ==========================================================
 #  🖥️ CONFIGURACIÓN DE PÁGINA
@@ -139,7 +143,6 @@ if "df" in locals() or "df" in globals():
                     data = contenido.encode("utf-8")
                     nombre_archivo = "export_resultados.txt"
                     mime = "text/plain"
-
                 else:
                     contenido = df_export.to_csv(index=False)
                     data = contenido.encode("utf-8")
@@ -154,46 +157,59 @@ if "df" in locals() or "df" in globals():
                 )
 
         # ======================================================
-        #  📄 GENERACIÓN DEL PDF (ARREGLADO Y ESTABLE)
+        #  📄 GENERACIÓN DEL PDF (NUEVO - REPORTLAB 100% ESTABLE)
         # ======================================================
         st.subheader("📄 Generar reporte PDF del registro seleccionado")
 
         if st.button("📄 Generar reporte PDF"):
-
+            
             dict_registro = registro.to_dict()
 
-            texto_limpio = ""
+            # Crear buffer en memoria
+            buffer = io.BytesIO()
+
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=letter,
+                title="Detalle del Registro"
+            )
+
+            styles = getSampleStyleSheet()
+            elementos = []
+
+            titulo = Paragraph("<b>Detalle del Registro</b>", styles["Title"])
+            elementos.append(titulo)
+            elementos.append(Spacer(1, 12))
+
+            # Construir tabla
+            tabla_data = [["Campo", "Valor"]]
             for k, v in dict_registro.items():
-                linea = f"{k}: {v}"
-                linea = texto_seguro(linea)   # ← LIMPIA TODA LA LÍNEA
-                texto_limpio += linea + "\n"
+                tabla_data.append([texto_seguro(str(k)), texto_seguro(str(v))])
 
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
+            tabla = Table(tabla_data, colWidths=[150, 350])
 
-            pdf.set_font("Helvetica", size=14)
-            pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
-            pdf.ln(5)
+            tabla.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E86C1")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
+            ]))
 
-            pdf.set_font("Helvetica", size=11)
+            elementos.append(tabla)
 
-            for linea in texto_limpio.split("\n"):
-                if linea.strip():
-                    try:
-                        pdf.multi_cell(190, 8, linea)   # ← ANCHO SEGURO
-                    except:
-                        pdf.multi_cell(190, 8, "[Texto no imprimible]")
+            doc.build(elementos)
+            buffer.seek(0)
 
-            pdf.output("reporte.pdf")
-
-            with open("reporte.pdf", "rb") as f:
-                st.download_button(
-                    "⬇️ Descargar PDF",
-                    f,
-                    file_name=f"reporte_{idx_real}.pdf",
-                    mime="application/pdf"
-                )
+            st.download_button(
+                "⬇️ Descargar PDF del registro",
+                buffer,
+                file_name=f"registro_{idx_real}.pdf",
+                mime="application/pdf"
+            )
 
     else:
         st.warning("⚠️ No se encontraron resultados con ese criterio de búsqueda.")
