@@ -2,7 +2,21 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
+import unicodedata
 import re  # ← necesario para limpiar caracteres
+
+# ==========================================================
+# 🔧 FUNCIÓN PARA NORMALIZAR (búsqueda sin acentos)
+# ==========================================================
+def normalizar(texto):
+    """Convierte texto a minúsculas y elimina acentos."""
+    if not isinstance(texto, str):
+        texto = str(texto)
+    texto = texto.lower()
+    texto = unicodedata.normalize("NFD", texto)
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    return texto
+
 
 # --- Configuración de página ---
 st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
@@ -52,12 +66,28 @@ if "df" in locals() or "df" in globals():
     columna_sel = st.selectbox("Selecciona una columna para buscar:", columnas)
     query = st.text_input("Introduce palabra o frase para buscar:")
 
-    # --- Filtro de búsqueda ---
+    # ==========================================================
+    # 🔎 BÚSQUEDA MEJORADA (SIN ACENTOS / CASE-INSENSITIVE)
+    # ==========================================================
     if query:
+        query_norm = normalizar(query)
+
         if columna_sel == "(Todas las columnas)":
-            resultados = df[df.apply(lambda r: r.astype(str).str.contains(query, case=False, na=False).any(), axis=1)]
+            resultados = df[
+                df.apply(
+                    lambda fila: any(
+                        query_norm in normalizar(str(valor))
+                        for valor in fila.values
+                    ),
+                    axis=1
+                )
+            ]
         else:
-            resultados = df[df[columna_sel].astype(str).str.contains(query, case=False, na=False)]
+            resultados = df[
+                df[columna_sel].astype(str).apply(
+                    lambda x: query_norm in normalizar(x)
+                )
+            ]
     else:
         resultados = df
 
@@ -69,7 +99,7 @@ if "df" in locals() or "df" in globals():
         # =====================================================================
         # --- DETALLE DEL REGISTRO ---
         # =====================================================================
-        st.subheader("📋 Ver detalle de un registro de la busqueda")
+        st.subheader("📋 Ver detalle de un registro de la búsqueda")
 
         columna_visible = "NOMBRE COMPLETO"
 
@@ -132,7 +162,7 @@ if "df" in locals() or "df" in globals():
                 )
 
         # =====================================================================
-        # --- Generar PDF (versión recomendada, SIEMPRE FUNCIONA) ---
+        # --- Generar PDF ---
         # =====================================================================
         st.subheader("📄 Generar reporte PDF del registro seleccionado")
 
@@ -142,24 +172,17 @@ if "df" in locals() or "df" in globals():
 
             texto_limpio = ""
             for k, v in dict_registro.items():
-                # Convertir a cadena
                 linea = f"{k}: {v}"
-
-                # Convertir Unicode → Latin-1 seguro
                 linea = linea.encode("latin-1", "replace").decode("latin-1")
-
                 texto_limpio += linea + "\n"
 
-            # Crear PDF
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # Helvetica → fuente interna segura
             pdf.set_font("Helvetica", size=14)
             pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
             pdf.ln(5)
-
             pdf.set_font("Helvetica", size=11)
 
             for linea in texto_limpio.split("\n"):
