@@ -17,20 +17,23 @@ def normalizar(texto):
     texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
     return texto
 
-
-# --- Configuración de página ---
-st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
-st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA 📊")
-
-# --- Cache de lectura (se actualiza cada semana = 604800 s) ---
+# ==========================================================
+# 🔧 LECTOR DIRECTO DE GOOGLE SHEETS (CSV)
+# ==========================================================
 @st.cache_data(ttl=604800)
-def cargar_excel(sheet_id):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
-    df = pd.read_excel(url, sheet_name=0)
+def cargar_gsheet(sheet_id, gid=0):
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    df = pd.read_csv(url)
     fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
     return df, fecha
 
-# --- Selección del programa ---
+# ==========================================================
+# CONFIGURACIÓN STREAMLIT
+# ==========================================================
+st.set_page_config(page_title="SACC-CIVIL - Visor de Base de Datos", layout="wide")
+st.title("📊 SACC-CIVIL / INFORMACIÓN UNIFICADA 📊")
+
+# Selección del programa
 st.subheader("🎓 Selecciona el programa que deseas consultar")
 
 programa = st.selectbox(
@@ -38,19 +41,24 @@ programa = st.selectbox(
     ["-- Seleccionar --", "Maestría", "Doctorado"]
 )
 
+# Nuevos archivos de Google Sheets
 sheet_ids = {
-    "Doctorado": "12JOAshO8u1nX-DDNPxxsLmEHKpA4SCGh",
-    "Maestría": "1t4sMTc-ODsNb0OG2T8Zo3WFx6TIKIR41"
+    "Maestría": {"id": "1ABwQL9xIio_HNo6fMKwbEsaz49DrksfvAzZ0SuJCFrw", "gid": 0},
+    "Doctorado": {"id": "1JchfOLVMr9GXBNldagKPSrsChmy_zx9885eE5PZl6ic", "gid": 0}
 }
 
-# --- Botón para refrescar datos ---
+# Botón refrescar
 if st.button("🔄 Refrescar datos (forzar actualización)"):
     st.cache_data.clear()
     st.success("Datos refrescados. Vuelve a seleccionar el programa para recargar.")
 
+# Cargar datos
 if programa != "-- Seleccionar --":
     try:
-        df, fecha_act = cargar_excel(sheet_ids[programa])
+        df, fecha_act = cargar_gsheet(
+            sheet_ids[programa]["id"],
+            sheet_ids[programa]["gid"]
+        )
         st.success(f"✅ Base de datos cargada: **{programa}**")
         st.info(f"📅 Última actualización: **{fecha_act}**")
     except Exception as e:
@@ -58,7 +66,9 @@ if programa != "-- Seleccionar --":
 else:
     st.stop()
 
-# --- Si hay datos ---
+# ==========================================================
+# BÚSQUEDA Y VISUALIZACIÓN
+# ==========================================================
 if "df" in locals() or "df" in globals():
     st.subheader("🔍 Buscar registros")
 
@@ -66,9 +76,7 @@ if "df" in locals() or "df" in globals():
     columna_sel = st.selectbox("Selecciona una columna para buscar:", columnas)
     query = st.text_input("Introduce palabra o frase para buscar:")
 
-    # ==========================================================
-    # 🔎 BÚSQUEDA MEJORADA (SIN ACENTOS / CASE-INSENSITIVE)
-    # ==========================================================
+    # Búsqueda sin acentos
     if query:
         query_norm = normalizar(query)
 
@@ -94,17 +102,18 @@ if "df" in locals() or "df" in globals():
     st.write(f"🔹 Registros encontrados: {len(resultados)}")
     st.dataframe(resultados, use_container_width=True)
 
+    # Si hay resultados
     if not resultados.empty:
 
-        # =====================================================================
-        # --- DETALLE DEL REGISTRO ---
-        # =====================================================================
-        st.subheader("📋 Ver detalle de un registro de la búsqueda")
+        # ============================================
+        #     DETALLE DEL REGISTRO
+        # ============================================
+        st.subheader("📋 Ver detalle de un registro")
 
         columna_visible = "NOMBRE COMPLETO"
 
         if columna_visible not in resultados.columns:
-            st.error(f"⚠️ La columna '{columna_visible}' no existe en la base de datos.")
+            st.error(f"⚠️ La columna '{columna_visible}' no existe en la base.")
         else:
             opciones = (
                 resultados.index.astype(str) +
@@ -113,32 +122,30 @@ if "df" in locals() or "df" in globals():
             )
 
             eleccion = st.selectbox("Selecciona un registro:", opciones)
-
             idx_real = int(eleccion.split(" – ")[0])
             registro = resultados.loc[idx_real]
 
             st.json(registro.to_dict())
 
-        # =====================================================================
-        # --- Exportar múltiples columnas ---
-        # =====================================================================
-        st.subheader("🧾 Exportar resultados (múltiples columnas)")
-        
+        # ============================================
+        #      EXPORTAR COLUMNAS
+        # ============================================
+        st.subheader("🧾 Exportar resultados")
+
         columnas_export = st.multiselect(
-            "Selecciona las columnas que deseas exportar:",
-            df.columns.tolist(),
-            help="Puedes elegir una o varias columnas."
+            "Selecciona las columnas:",
+            df.columns.tolist()
         )
 
         tipo_export = st.radio(
-            "Formato de exportación:",
+            "Formato:",
             ["TXT", "CSV"],
             horizontal=True
         )
 
         if st.button("💾 Exportar"):
             if not columnas_export:
-                st.warning("⚠️ Selecciona al menos una columna para exportar.")
+                st.warning("⚠️ Selecciona al menos una columna.")
             else:
                 df_export = resultados[columnas_export]
 
@@ -147,7 +154,6 @@ if "df" in locals() or "df" in globals():
                     data = contenido.encode("utf-8")
                     nombre_archivo = "export_resultados.txt"
                     mime = "text/plain"
-
                 else:
                     contenido = df_export.to_csv(index=False)
                     data = contenido.encode("utf-8")
@@ -161,12 +167,12 @@ if "df" in locals() or "df" in globals():
                     mime=mime
                 )
 
-        # =====================================================================
-        # --- Generar PDF ---
-        # =====================================================================
-        st.subheader("📄 Generar reporte PDF del registro seleccionado")
+        # ============================================
+        #      PDF
+        # ============================================
+        st.subheader("📄 Generar PDF del registro")
 
-        if st.button("📄 Generar reporte PDF"):
+        if st.button("📄 Generar PDF"):
 
             dict_registro = registro.to_dict()
 
@@ -179,7 +185,6 @@ if "df" in locals() or "df" in globals():
             pdf = FPDF()
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
-
             pdf.set_font("Helvetica", size=14)
             pdf.cell(0, 10, "Detalle del registro seleccionado", ln=True)
             pdf.ln(5)
@@ -204,4 +209,4 @@ if "df" in locals() or "df" in globals():
                 )
 
     else:
-        st.warning("⚠️ No se encontraron resultados con ese criterio de búsqueda.")
+        st.warning("⚠️ No se encontraron resultados.")
