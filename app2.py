@@ -41,7 +41,7 @@ programa = st.selectbox(
 sheet_ids = {
     "Maestría": {
         "id": "1ABwQL9xIio_HNo6fMKwbEsaz49DrksfvAzZ0SuJCFrw",
-        "gid": 1551638441
+        "gid": 0
     },
     "Doctorado": {
         "id": "1JchfOLVMr9GXBNldagKPSrsChmy_zx9885eE5PZl6ic",
